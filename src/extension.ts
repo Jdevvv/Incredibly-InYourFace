@@ -5,270 +5,358 @@
 // https://code.visualstudio.com/api/extension-guides/webview
 // and more that I can't find anymore
 
-"use strict";
+'use strict';
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
-import * as vscode from "vscode";
+import * as vscode from 'vscode';
 
 // this method is called when your extension is activated
 // your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
-  console.log("Extension activated");
+	console.log('Extension activated');
 
-  const provider = new CustomSidebarViewProvider(context.extensionUri);
+	const provider = new CustomSidebarViewProvider(context.extensionUri);
 
-  context.subscriptions.push(
-    vscode.window.registerWebviewViewProvider(
-      CustomSidebarViewProvider.viewType,
-      provider
-    )
-  );
+	context.subscriptions.push(
+		vscode.window.registerWebviewViewProvider(
+			CustomSidebarViewProvider.viewType,
+			provider
+		)
+	);
 
-  let _statusBarItem: vscode.StatusBarItem;
-  let errorLensEnabled: boolean = true;
+	let _statusBarItem: vscode.StatusBarItem;
+	let errorLensEnabled: boolean = true;
 
-  // Use the console to output diagnostic information (console.log) and errors (console.error)
-  // console.log('Visual Studio Code Extension "errorlens" is now active');
+	// Use the console to output diagnostic information (console.log) and errors (console.error)
+	// console.log('Visual Studio Code Extension "errorlens" is now active');
 
-  // Commands are defined in the package.json file
-  let disposableEnableErrorLens = vscode.commands.registerCommand(
-    "ErrorLens.enable",
-    () => {
-      errorLensEnabled = true;
+	// Commands are defined in the package.json file
+	let disposableEnableErrorLens = vscode.commands.registerCommand(
+		'ErrorLens.enable',
+		() => {
+			errorLensEnabled = true;
 
-      const activeTextEditor: vscode.TextEditor | undefined =
-        vscode.window.activeTextEditor;
-      if (activeTextEditor) {
-        updateDecorationsForUri(activeTextEditor.document.uri);
-      }
-    }
-  );
+			const activeTextEditor: vscode.TextEditor | undefined =
+				vscode.window.activeTextEditor;
+			if (activeTextEditor) {
+				updateDecorationsForUri(activeTextEditor.document.uri);
+			}
+		}
+	);
 
-  context.subscriptions.push(disposableEnableErrorLens);
+	context.subscriptions.push(disposableEnableErrorLens);
 
-  let disposableDisableErrorLens = vscode.commands.registerCommand(
-    "ErrorLens.disable",
-    () => {
-      errorLensEnabled = false;
+	let disposableDisableErrorLens = vscode.commands.registerCommand(
+		'ErrorLens.disable',
+		() => {
+			errorLensEnabled = false;
 
-      const activeTextEditor: vscode.TextEditor | undefined =
-        vscode.window.activeTextEditor;
-      if (activeTextEditor) {
-        updateDecorationsForUri(activeTextEditor.document.uri);
-      }
-    }
-  );
+			const activeTextEditor: vscode.TextEditor | undefined =
+				vscode.window.activeTextEditor;
+			if (activeTextEditor) {
+				updateDecorationsForUri(activeTextEditor.document.uri);
+			}
+		}
+	);
 
-  context.subscriptions.push(disposableDisableErrorLens);
+	context.subscriptions.push(disposableDisableErrorLens);
 
-  vscode.languages.onDidChangeDiagnostics(
-    (diagnosticChangeEvent) => {
-      onChangedDiagnostics(diagnosticChangeEvent);
-    },
-    null,
-    context.subscriptions
-  );
+	vscode.languages.onDidChangeDiagnostics(
+		(diagnosticChangeEvent) => {
+			onChangedDiagnostics(diagnosticChangeEvent);
+		},
+		null,
+		context.subscriptions
+	);
 
-  // Note: URIs for onDidOpenTextDocument() can contain schemes other than file:// (such as git://)
-  vscode.workspace.onDidOpenTextDocument(
-    (textDocument) => {
-      updateDecorationsForUri(textDocument.uri);
-    },
-    null,
-    context.subscriptions
-  );
+	// Note: URIs for onDidOpenTextDocument() can contain schemes other than file:// (such as git://)
+	vscode.workspace.onDidOpenTextDocument(
+		(textDocument) => {
+			updateDecorationsForUri(textDocument.uri);
+		},
+		null,
+		context.subscriptions
+	);
 
-  // Update on editor switch.
-  vscode.window.onDidChangeActiveTextEditor(
-    (textEditor) => {
-      if (textEditor === undefined) {
-        return;
-      }
-      updateDecorationsForUri(textEditor.document.uri);
-    },
-    null,
-    context.subscriptions
-  );
+	// Update on editor switch.
+	vscode.window.onDidChangeActiveTextEditor(
+		(textEditor) => {
+			if (textEditor === undefined) {
+				return;
+			}
+			updateDecorationsForUri(textEditor.document.uri);
+		},
+		null,
+		context.subscriptions
+	);
 
-  function onChangedDiagnostics(
-    diagnosticChangeEvent: vscode.DiagnosticChangeEvent
-  ) {
-    if (!vscode.window) {
-      return;
-    }
+	function onChangedDiagnostics(
+		diagnosticChangeEvent: vscode.DiagnosticChangeEvent
+	) {
+		if (!vscode.window) {
+			return;
+		}
 
-    const activeTextEditor: vscode.TextEditor | undefined =
-      vscode.window.activeTextEditor;
-    if (!activeTextEditor) {
-      return;
-    }
+		const activeTextEditor: vscode.TextEditor | undefined =
+			vscode.window.activeTextEditor;
+		if (!activeTextEditor) {
+			return;
+		}
 
-    // Many URIs can change - we only need to decorate the active text editor
-    for (const uri of diagnosticChangeEvent.uris) {
-      // Only update decorations for the active text editor.
-      if (uri.fsPath === activeTextEditor.document.uri.fsPath) {
-        updateDecorationsForUri(uri);
-        break;
-      }
-    }
-  }
+		// Many URIs can change - we only need to decorate the active text editor
+		for (const uri of diagnosticChangeEvent.uris) {
+			// Only update decorations for the active text editor.
+			if (uri.fsPath === activeTextEditor.document.uri.fsPath) {
+				updateDecorationsForUri(uri);
+				break;
+			}
+		}
+	}
 
-  function updateDecorationsForUri(uriToDecorate: vscode.Uri) {
-    if (!uriToDecorate) {
-      return;
-    }
+	function updateDecorationsForUri(uriToDecorate: vscode.Uri) {
+		if (!uriToDecorate) {
+			return;
+		}
 
-    // Only process "file://" URIs.
-    if (uriToDecorate.scheme !== "file") {
-      return;
-    }
+		// Only process "file://" URIs.
+		if (uriToDecorate.scheme !== 'file') {
+			return;
+		}
 
-    if (!vscode.window) {
-      return;
-    }
+		if (!vscode.window) {
+			return;
+		}
 
-    const activeTextEditor: vscode.TextEditor | undefined =
-      vscode.window.activeTextEditor;
-    if (!activeTextEditor) {
-      return;
-    }
+		const activeTextEditor: vscode.TextEditor | undefined =
+			vscode.window.activeTextEditor;
+		if (!activeTextEditor) {
+			return;
+		}
 
-    if (!activeTextEditor.document.uri.fsPath) {
-      return;
-    }
+		if (!activeTextEditor.document.uri.fsPath) {
+			return;
+		}
 
-    let numErrors = 0;
-    let numWarnings = 0;
+		let numErrors = 0;
+		let numWarnings = 0;
 
-    if (errorLensEnabled) {
-      let aggregatedDiagnostics: any = {};
-      let diagnostic: vscode.Diagnostic;
+		if (errorLensEnabled) {
+			let aggregatedDiagnostics: any = {};
+			let diagnostic: vscode.Diagnostic;
 
-      // Iterate over each diagnostic that VS Code has reported for this file. For each one, add to
-      // a list of objects, grouping together diagnostics which occur on a single line.
-      for (diagnostic of vscode.languages.getDiagnostics(uriToDecorate)) {
-        let key = "line" + diagnostic.range.start.line;
+			// Iterate over each diagnostic that VS Code has reported for this file. For each one, add to
+			// a list of objects, grouping together diagnostics which occur on a single line.
+			for (diagnostic of vscode.languages.getDiagnostics(uriToDecorate)) {
+				let key = 'line' + diagnostic.range.start.line;
 
-        if (aggregatedDiagnostics[key]) {
-          // Already added an object for this key, so augment the arrayDiagnostics[] array.
-          aggregatedDiagnostics[key].arrayDiagnostics.push(diagnostic);
-        } else {
-          // Create a new object for this key, specifying the line: and a arrayDiagnostics[] array
-          aggregatedDiagnostics[key] = {
-            line: diagnostic.range.start.line,
-            arrayDiagnostics: [diagnostic],
-          };
-        }
+				if (aggregatedDiagnostics[key]) {
+					// Already added an object for this key, so augment the arrayDiagnostics[] array.
+					aggregatedDiagnostics[key].arrayDiagnostics.push(diagnostic);
+				} else {
+					// Create a new object for this key, specifying the line: and a arrayDiagnostics[] array
+					aggregatedDiagnostics[key] = {
+						line: diagnostic.range.start.line,
+						arrayDiagnostics: [diagnostic],
+					};
+				}
 
-        switch (diagnostic.severity) {
-          case 0:
-            numErrors += 1;
-            break;
+				switch (diagnostic.severity) {
+					case 0:
+						numErrors += 1;
+						break;
 
-          case 1:
-            numWarnings += 1;
-            break;
+					case 1:
+						numWarnings += 1;
+						break;
 
-          // Ignore other severities.
-        }
-      }
-    }
-  }
+					// Ignore other severities.
+				}
+			}
+		}
+	}
 }
 
 class CustomSidebarViewProvider implements vscode.WebviewViewProvider {
-  public static readonly viewType = "in-your-face.openview";
+	public static readonly viewType = 'in-your-face.openview';
 
-  private _view?: vscode.WebviewView;
+	private _view?: vscode.WebviewView;
 
-  constructor(private readonly _extensionUri: vscode.Uri) {}
+	constructor(private readonly _extensionUri: vscode.Uri) {}
 
-  resolveWebviewView(
-    webviewView: vscode.WebviewView,
-    context: vscode.WebviewViewResolveContext<unknown>,
-    token: vscode.CancellationToken
-  ): void | Thenable<void> {
-    this._view = webviewView;
+	resolveWebviewView(
+		webviewView: vscode.WebviewView,
+		context: vscode.WebviewViewResolveContext<unknown>,
+		token: vscode.CancellationToken
+	): void | Thenable<void> {
+		this._view = webviewView;
 
-    webviewView.webview.options = {
-      // Allow scripts in the webview
-      enableScripts: true,
-      localResourceRoots: [this._extensionUri],
-    };
+		webviewView.webview.options = {
+			// Allow scripts in the webview
+			enableScripts: true,
+			localResourceRoots: [this._extensionUri],
+		};
 
-    // default webview will show doom face 0
-    webviewView.webview.html = this.getHtmlContent0(webviewView.webview);
+		// default webview will show doom face 0
+		webviewView.webview.html = this.getHtmlContent0(webviewView.webview);
 
-    // This is called every second is decides which doom face to show in the webview
-    setInterval(() => {
-      let errors = getNumErrors();
-      if (errors === 0) {
-        webviewView.webview.html = this.getHtmlContent0(webviewView.webview);
-      } else if (errors < 5) {
-        webviewView.webview.html = this.getHtmlContent1(webviewView.webview);
-      } else if (errors < 10) {
-        webviewView.webview.html = this.getHtmlContent2(webviewView.webview);
-      } else {
-        webviewView.webview.html = this.getHtmlContent3(webviewView.webview);
-      }
-    }, 1000);
-  }
+		// This is called every second is decides which doom face to show in the webview
+		setInterval(() => {
+			let errors = getNumErrors();
+			if (errors === 0) {
+				webviewView.webview.html = this.getHtmlContent0(webviewView.webview);
+			} else if (errors < 2) {
+				webviewView.webview.html = this.getHtmlContent1(webviewView.webview);
+			} else if (errors < 4) {
+				webviewView.webview.html = this.getHtmlContent2(webviewView.webview);
+			} else if (errors < 6) {
+				webviewView.webview.html = this.getHtmlContent3(webviewView.webview);
+			} else if (errors < 8) {
+				webviewView.webview.html = this.getHtmlContent4(webviewView.webview);
+			} else if (errors < 9) {
+				webviewView.webview.html = this.getHtmlContent5(webviewView.webview);
+			} else if (errors < 10) {
+				webviewView.webview.html = this.getHtmlContent6(webviewView.webview);
+			} else if (errors < 12) {
+				webviewView.webview.html = this.getHtmlContent7(webviewView.webview);
+			} else if (errors < 14) {
+				webviewView.webview.html = this.getHtmlContent8(webviewView.webview);
+			} else {
+				webviewView.webview.html = this.getHtmlContent9(webviewView.webview);
+			}
+		}, 1000);
+	}
 
-  // This is doom face 0
-  private getHtmlContent0(webview: vscode.Webview): string {
-    const stylesheetUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this._extensionUri, "assets", "main.css")
-    );
+	private getHtmlContent0(webview: vscode.Webview): string {
+		webview.asWebviewUri(
+			vscode.Uri.joinPath(this._extensionUri, 'assets', 'main.css')
+		);
 
-    const face0 = webview.asWebviewUri(
-      vscode.Uri.joinPath(this._extensionUri, "assets", "incredible0.png")
-    );
+		const face = webview.asWebviewUri(
+			vscode.Uri.joinPath(this._extensionUri, 'assets', 'bg.png')
+		);
 
-    return getHtml(face0);
-  }
+		return getHtml(face);
+	}
 
-  // This is doom face 1
-  private getHtmlContent1(webview: vscode.Webview): string {
-    const stylesheetUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this._extensionUri, "assets", "main.css")
-    );
+	private getHtmlContent1(webview: vscode.Webview): string {
+		webview.asWebviewUri(
+			vscode.Uri.joinPath(this._extensionUri, 'assets', 'main.css')
+		);
 
-    const face1 = webview.asWebviewUri(
-      vscode.Uri.joinPath(this._extensionUri, "assets", "incredible1.png")
-    );
+		const face = webview.asWebviewUri(
+			vscode.Uri.joinPath(this._extensionUri, 'assets', 'gentleman.png')
+		);
 
-    return getHtml(face1);
-  }
+		return getHtml(face);
+	}
 
-  // This is doom face 2
-  private getHtmlContent2(webview: vscode.Webview): string {
-    const stylesheetUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this._extensionUri, "assets", "main.css")
-    );
+	private getHtmlContent2(webview: vscode.Webview): string {
+		webview.asWebviewUri(
+			vscode.Uri.joinPath(this._extensionUri, 'assets', 'main.css')
+		);
 
-    const face2 = webview.asWebviewUri(
-      vscode.Uri.joinPath(this._extensionUri, "assets", "incredible2.png")
-    );
+		const face = webview.asWebviewUri(
+			vscode.Uri.joinPath(this._extensionUri, 'assets', 'gobelet-doree.png')
+		);
 
-    return getHtml(face2);
-  }
+		return getHtml(face);
+	}
 
-  // This is doom face 3
-  private getHtmlContent3(webview: vscode.Webview): string {
-    const stylesheetUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this._extensionUri, "assets", "main.css")
-    );
+	private getHtmlContent3(webview: vscode.Webview): string {
+		webview.asWebviewUri(
+			vscode.Uri.joinPath(this._extensionUri, 'assets', 'main.css')
+		);
 
-    const face3 = webview.asWebviewUri(
-      vscode.Uri.joinPath(this._extensionUri, "assets", "incredible3.png")
-    );
+		const face = webview.asWebviewUri(
+			vscode.Uri.joinPath(
+				this._extensionUri,
+				'assets',
+				'gagner-gobelet-doree.png'
+			)
+		);
 
-    return getHtml(face3);
-  }
+		return getHtml(face);
+	}
+
+	private getHtmlContent4(webview: vscode.Webview): string {
+		webview.asWebviewUri(
+			vscode.Uri.joinPath(this._extensionUri, 'assets', 'main.css')
+		);
+
+		const face = webview.asWebviewUri(
+			vscode.Uri.joinPath(this._extensionUri, 'assets', 'kebab.png')
+		);
+
+		return getHtml(face);
+	}
+
+	private getHtmlContent5(webview: vscode.Webview): string {
+		webview.asWebviewUri(
+			vscode.Uri.joinPath(this._extensionUri, 'assets', 'main.css')
+		);
+
+		const face = webview.asWebviewUri(
+			vscode.Uri.joinPath(
+				this._extensionUri,
+				'assets',
+				'ko-mais-victorieux.png'
+			)
+		);
+
+		return getHtml(face);
+	}
+
+	private getHtmlContent6(webview: vscode.Webview): string {
+		webview.asWebviewUri(
+			vscode.Uri.joinPath(this._extensionUri, 'assets', 'main.css')
+		);
+
+		const face = webview.asWebviewUri(
+			vscode.Uri.joinPath(this._extensionUri, 'assets', 'deg-lolo.png')
+		);
+
+		return getHtml(face);
+	}
+
+	private getHtmlContent7(webview: vscode.Webview): string {
+		webview.asWebviewUri(
+			vscode.Uri.joinPath(this._extensionUri, 'assets', 'main.css')
+		);
+
+		const face = webview.asWebviewUri(
+			vscode.Uri.joinPath(this._extensionUri, 'assets', 'shocked.png')
+		);
+
+		return getHtml(face);
+	}
+
+	private getHtmlContent8(webview: vscode.Webview): string {
+		webview.asWebviewUri(
+			vscode.Uri.joinPath(this._extensionUri, 'assets', 'main.css')
+		);
+
+		const face = webview.asWebviewUri(
+			vscode.Uri.joinPath(this._extensionUri, 'assets', 'sad-lolo.jpg')
+		);
+
+		return getHtml(face);
+	}
+
+	private getHtmlContent9(webview: vscode.Webview): string {
+		webview.asWebviewUri(
+			vscode.Uri.joinPath(this._extensionUri, 'assets', 'main.css')
+		);
+
+		const face = webview.asWebviewUri(
+			vscode.Uri.joinPath(this._extensionUri, 'assets', 'facepalm-lolo.jpg')
+		);
+
+		return getHtml(face);
+	}
 }
 
 function getHtml(doomFace: any) {
-  return `
+	return `
     <!DOCTYPE html>
 			<html lang="en">
 			<head>
@@ -278,7 +366,7 @@ function getHtml(doomFace: any) {
 			<body>
 			<section class="wrapper">
       <img class="doomFaces" src="${doomFace}" alt="" >
-      <h1 id="errorNum">${getNumErrors() + " errors"}</h1>
+      <h1 id="errorNum">${getNumErrors() + ' errors'}</h1>
 			</section>
       </body>
 
@@ -288,49 +376,49 @@ function getHtml(doomFace: any) {
 
 // function to get the number of errors in the open file
 function getNumErrors(): number {
-  const activeTextEditor: vscode.TextEditor | undefined =
-    vscode.window.activeTextEditor;
-  if (!activeTextEditor) {
-    return 0;
-  }
-  const document: vscode.TextDocument = activeTextEditor.document;
+	const activeTextEditor: vscode.TextEditor | undefined =
+		vscode.window.activeTextEditor;
+	if (!activeTextEditor) {
+		return 0;
+	}
+	const document: vscode.TextDocument = activeTextEditor.document;
 
-  let numErrors = 0;
-  let numWarnings = 0;
+	let numErrors = 0;
+	let numWarnings = 0;
 
-  let aggregatedDiagnostics: any = {};
-  let diagnostic: vscode.Diagnostic;
+	let aggregatedDiagnostics: any = {};
+	let diagnostic: vscode.Diagnostic;
 
-  // Iterate over each diagnostic that VS Code has reported for this file. For each one, add to
-  // a list of objects, grouping together diagnostics which occur on a single line.
-  for (diagnostic of vscode.languages.getDiagnostics(document.uri)) {
-    let key = "line" + diagnostic.range.start.line;
+	// Iterate over each diagnostic that VS Code has reported for this file. For each one, add to
+	// a list of objects, grouping together diagnostics which occur on a single line.
+	for (diagnostic of vscode.languages.getDiagnostics(document.uri)) {
+		let key = 'line' + diagnostic.range.start.line;
 
-    if (aggregatedDiagnostics[key]) {
-      // Already added an object for this key, so augment the arrayDiagnostics[] array.
-      aggregatedDiagnostics[key].arrayDiagnostics.push(diagnostic);
-    } else {
-      // Create a new object for this key, specifying the line: and a arrayDiagnostics[] array
-      aggregatedDiagnostics[key] = {
-        line: diagnostic.range.start.line,
-        arrayDiagnostics: [diagnostic],
-      };
-    }
+		if (aggregatedDiagnostics[key]) {
+			// Already added an object for this key, so augment the arrayDiagnostics[] array.
+			aggregatedDiagnostics[key].arrayDiagnostics.push(diagnostic);
+		} else {
+			// Create a new object for this key, specifying the line: and a arrayDiagnostics[] array
+			aggregatedDiagnostics[key] = {
+				line: diagnostic.range.start.line,
+				arrayDiagnostics: [diagnostic],
+			};
+		}
 
-    switch (diagnostic.severity) {
-      case 0:
-        numErrors += 1;
-        break;
+		switch (diagnostic.severity) {
+			case 0:
+				numErrors += 1;
+				break;
 
-      case 1:
-        numWarnings += 1;
-        break;
+			case 1:
+				numWarnings += 1;
+				break;
 
-      // Ignore other severities.
-    }
-  }
+			// Ignore other severities.
+		}
+	}
 
-  return numErrors;
+	return numErrors;
 }
 
 // this method is called when your extension is deactivated
